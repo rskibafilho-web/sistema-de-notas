@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Indicadores acadêmicos</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>Indicadores acadêmicos</h1>
+<p class="subtitulo">{{ total_alunos }} alunos · anos coletados: {{ total_anos | join(', ') }}</p>
+
+<form class="busca" onsubmit="return irParaAluno(event)">
+  <label for="busca-aluno" style="display:none">Buscar aluno</label>
+  <input id="busca-aluno" list="lista-alunos" placeholder="Buscar aluno por nome…" autocomplete="off">
+  <datalist id="lista-alunos">
+    {% for nome, mat in matriculas.items() %}<option value="{{ nome }}">{% endfor %}
+  </datalist>
+  <button type="submit">Ver aluno</button>
+</form>
+<script>
+  const MATRICULAS = {{ matriculas | tojson }};
+  function irParaAluno(ev) {
+    ev.preventDefault();
+    const nome = document.getElementById('busca-aluno').value;
+    const matricula = MATRICULAS[nome];
+    if (matricula) window.location.href = '/aluno/' + encodeURIComponent(matricula);
+    else alert('Aluno não encontrado - escolha um nome da lista.');
+    return false;
+  }
+</script>
+
+{% macro link_filtro(ano, turma, disciplina) -%}
+?ano={{ ano | urlencode }}&turma={{ turma | urlencode }}&disciplina={{ disciplina | urlencode }}
+{%- endmacro %}
+
+<div class="filtro-grupo">
+  <p class="filtro-titulo">Ano letivo</p>
+  <div class="chips">
+    <a class="chip {% if not ano_sel %}ativo{% endif %}" href="{{ link_filtro('', turma_sel, disciplina_sel) }}">Todos</a>
+    {% for a in anos_disponiveis %}
+    <a class="chip {% if a|string == ano_sel %}ativo{% endif %}" href="{{ link_filtro(a, turma_sel, disciplina_sel) }}">{{ a }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="filtro-grupo">
+  <p class="filtro-titulo">Turma</p>
+  <div class="chips">
+    <a class="chip {% if not turma_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, '', disciplina_sel) }}">Todas</a>
+    {% for t in turmas %}
+    <a class="chip {% if t == turma_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, t, disciplina_sel) }}">{{ t }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="filtro-grupo">
+  <p class="filtro-titulo">Disciplina</p>
+  <div class="chips">
+    <a class="chip {% if not disciplina_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, turma_sel, '') }}">Todas</a>
+    {% for d in disciplinas %}
+    <a class="chip {% if d == disciplina_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, turma_sel, d) }}">{{ d }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<h2>1. Média por aluno / disciplina, ano a ano</h2>
+{% if medias %}
+<table>
+  <tr><th>Aluno</th><th>Disciplina</th>{% for ano in anos_medias %}<th>{{ ano }}</th>{% endfor %}</tr>
+  {% for linha in medias %}
+  <tr>
+    <td><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
+    <td>{{ linha.disciplina }}</td>
+    {% for ano in anos_medias %}
+      <td>{{ '%.1f'|format(linha[ano]) if linha[ano] == linha[ano] else '—' }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="vazio">Sem dados para esse filtro.</p>
+{% endif %}
+
+<h2>2. Evolução de faltas por aluno / turma, ano a ano</h2>
+{% if faltas %}
+<table>
+  <tr><th>Aluno</th><th>Turma atual</th>{% for ano in anos_faltas %}<th>{{ ano }}</th>{% endfor %}</tr>
+  {% for linha in faltas %}
+  <tr>
+    <td><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
+    <td>{{ linha.turma_atual }}</td>
+    {% for ano in anos_faltas %}
+      <td>{{ linha[ano]|int if linha[ano] == linha[ano] else '—' }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="vazio">Sem dados para esse filtro.</p>
+{% endif %}
+
+<h2>3. Alunos em risco (faltas subindo + nota caindo no mesmo período)</h2>
+{% if risco %}
+<table>
+  <tr><th>Aluno</th><th>Ano</th><th>Variação de nota</th><th>Variação de faltas</th></tr>
+  {% for linha in risco %}
+  <tr class="risco">
+    <td><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
+    <td>{{ linha.ano_letivo }}</td>
+    <td class="desce">{{ '%.1f'|format(linha.delta_nota) }}</td>
+    <td class="sobe">+{{ linha.delta_faltas|int }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="vazio">Nenhum aluno com essa combinação (nota caindo e faltas subindo) para esse filtro.</p>
+{% endif %}
+
+</body>
+</html>

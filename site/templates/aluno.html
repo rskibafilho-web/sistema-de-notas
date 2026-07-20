@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>{{ nome }} — Indicadores acadêmicos</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/chart.umd.min.js"></script>
+<style>
+  .chips label { border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.75rem;
+                 font-size: 0.83rem; cursor: pointer; background: var(--surface-1); color: var(--text-secondary); }
+  .chips label:has(input:checked) { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .chips input { margin-right: 0.3rem; }
+</style>
+</head>
+<body>
+
+<a class="voltar" href="/">&larr; voltar aos indicadores</a>
+<h1>{{ nome }}</h1>
+<p class="subtitulo">Matrícula {{ matricula }}</p>
+
+{% if alerta %}
+<div class="alerta">⚠ {{ alerta }}</div>
+{% endif %}
+
+<div class="cards">
+  {% for r in resumo %}
+  <div class="card {% if r.media_aluno is none %}sem-dados{% endif %}">
+    <div class="ano">{{ r.ano_letivo }}{% if r.turma %} · {{ r.turma }}{% endif %}</div>
+    {% if r.media_aluno is none %}
+      <div class="nota">sem dados</div>
+    {% else %}
+      <div class="nota">{{ '%.1f'|format(r.media_aluno) }}</div>
+      <div class="contexto">
+        turma {{ '%.1f'|format(r.turma_media) if r.turma_media is not none else '—' }}
+        {% if r.turma_desvio is not none %}± {{ '%.1f'|format(r.turma_desvio) }}{% endif %}
+        {% if r.z is not none %} · z {{ '%+.1f'|format(r.z) }}{% endif %}
+        · {{ r.faltas }} falta{{ 's' if r.faltas != 1 else '' }}
+      </div>
+      {% if r.percentil is not none %}
+        {% if r.percentil >= 60 %}
+          <span class="badge destaque">melhor que {{ r.percentil|round|int }}% da turma</span>
+        {% elif r.percentil >= 25 %}
+          <span class="badge media">melhor que {{ r.percentil|round|int }}% da turma</span>
+        {% else %}
+          <span class="badge atencao">melhor que {{ r.percentil|round|int }}% da turma</span>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Extrato trimestral vs. a turma</h2>
+<div class="chips" id="chips-disciplina"></div>
+<div class="chart-card">
+  <canvas id="grafico"></canvas>
+</div>
+
+<script>
+const DADOS = {{ grafico | tojson }};
+// ordem categorica validada (palette.md), pulando o slot 7 (violeta = turma/aluno)
+const CORES = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#e34948'];
+
+const ctx = document.getElementById('grafico').getContext('2d');
+
+function datasetsBase() {
+  return [
+    {
+      label: 'turma (± desvio)', data: DADOS.turma_sup, borderWidth: 0,
+      pointRadius: 0, backgroundColor: 'rgba(74,58,167,0.10)', fill: '+1',
+    },
+    {
+      label: 'turma mínimo', data: DADOS.turma_inf, borderWidth: 0,
+      pointRadius: 0, backgroundColor: 'rgba(74,58,167,0.10)', fill: false,
+    },
+    {
+      label: 'média da turma', data: DADOS.turma_media, borderColor: '#4a3aa7',
+      borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false,
+    },
+    {
+      label: 'mínima 6,0', data: DADOS.labels.map(() => 6.0), borderColor: '#d03b3b',
+      borderDash: [3, 3], borderWidth: 1.25, pointRadius: 0, fill: false,
+    },
+    {
+      label: 'média do aluno', data: DADOS.media_aluno, borderColor: '#0b0b0b',
+      borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#0b0b0b', fill: false,
+    },
+  ];
+}
+
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: DADOS.labels, datasets: datasetsBase() },
+  options: {
+    responsive: true,
+    scales: {
+      y: { min: 0, max: 10, grid: { color: '#e1e0d9' }, ticks: { color: '#898781' } },
+      x: { grid: { display: false }, ticks: { color: '#898781' } },
+    },
+    plugins: { legend: { position: 'bottom', labels: { color: '#52514e', usePointStyle: true } } },
+  },
+});
+
+const chipsDiv = document.getElementById('chips-disciplina');
+Object.keys(DADOS.disciplinas).forEach((disc, i) => {
+  const id = 'chip-' + i;
+  const label = document.createElement('label');
+  label.innerHTML = `<input type="checkbox" id="${id}"> ${disc}`;
+  chipsDiv.appendChild(label);
+  document.getElementById(id).addEventListener('change', (ev) => {
+    if (ev.target.checked) {
+      chart.data.datasets.push({
+        label: disc, data: DADOS.disciplinas[disc],
+        borderColor: CORES[i % CORES.length], borderWidth: 2, pointRadius: 3, fill: false,
+        _disciplina: disc,
+      });
+    } else {
+      chart.data.datasets = chart.data.datasets.filter(d => d._disciplina !== disc);
+    }
+    chart.update();
+  });
+});
+</script>
+
+</body>
+</html>

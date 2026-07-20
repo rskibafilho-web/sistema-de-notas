@@ -1,0 +1,11 @@
+.env
+venv/
+__pycache__/
+*.pyc
+dados_exportados/
+reconhecimento/
+analises/*.xlsx
+site/dados/
+*.log
+coleta_log.txt
+site/flask_log.txt

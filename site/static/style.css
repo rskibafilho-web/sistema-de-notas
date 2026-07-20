@@ -1,0 +1,121 @@
+/* Paleta e tokens - ver dataviz skill (references/palette.md) */
+:root {
+  --surface-1: #fcfcfb;
+  --page-plane: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --gridline: #e1e0d9;
+  --border: rgba(11, 11, 11, 0.10);
+  --accent: #4a3aa7;
+  --accent-soft: #ece8fb;
+  --good: #0ca30c;
+  --good-soft: #e5f6e5;
+  --critical: #d03b3b;
+  --critical-soft: #fdecec;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--page-plane);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 2rem 2.5rem 4rem;
+}
+
+h1 { font-size: 1.6rem; margin: 0 0 0.2rem; font-weight: 700; }
+.subtitulo { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.voltar { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; display: inline-block; margin-bottom: 0.5rem; }
+.voltar:hover { color: var(--accent); }
+
+/* busca */
+.busca { display: flex; gap: 0.5rem; align-items: center; margin: 1.2rem 0; }
+.busca input {
+  padding: 0.5rem 0.8rem; font-size: 0.9rem; width: 280px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1);
+}
+.busca button {
+  padding: 0.5rem 1rem; font-size: 0.9rem; border: none; border-radius: 8px;
+  background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+}
+.busca button:hover { opacity: 0.9; }
+
+/* chips (filtros) */
+.filtro-grupo { margin: 0.9rem 0; }
+.filtro-titulo {
+  font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.03em; margin: 0 0 0.4rem;
+}
+.chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chip {
+  display: inline-block; padding: 0.3rem 0.8rem; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-1);
+  color: var(--text-secondary); font-size: 0.83rem; text-decoration: none;
+  white-space: nowrap;
+}
+.chip:hover { background: var(--accent-soft); text-decoration: none; }
+.chip.ativo { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+/* cards de resumo (pagina do aluno) */
+.cards { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1.2rem 0 2rem; }
+.card {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.1rem 1.3rem; min-width: 220px; box-shadow: 0 1px 2px rgba(11, 11, 11, 0.04);
+}
+.card .ano {
+  color: var(--text-muted); font-size: 0.78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.02em;
+}
+.card .nota { font-size: 2.1rem; font-weight: 700; margin: 0.25rem 0; font-variant-numeric: tabular-nums; }
+.card .contexto { font-size: 0.83rem; color: var(--text-secondary); }
+.card.sem-dados { color: var(--text-muted); }
+.card.sem-dados .nota { font-size: 1.1rem; font-weight: 500; color: var(--text-muted); }
+
+.badge {
+  display: inline-block; margin-top: 0.55rem; padding: 0.2rem 0.6rem; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 600;
+}
+.badge.destaque { background: var(--good-soft); color: var(--good); }
+.badge.media { background: #eee; color: var(--text-secondary); }
+.badge.atencao { background: var(--critical-soft); color: var(--critical); }
+
+/* alerta de risco */
+.alerta {
+  background: var(--critical-soft); border: 1px solid #f3b8b8; color: #9c2626;
+  padding: 0.9rem 1.1rem; border-radius: 10px; margin: 1rem 0; font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* secoes e tabelas */
+h2 {
+  font-size: 1.05rem; font-weight: 700; margin-top: 2.6rem; margin-bottom: 0.8rem;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--gridline);
+}
+table {
+  border-collapse: collapse; width: 100%; margin: 0 0 2.5rem; background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.88rem;
+}
+th, td { padding: 0.55rem 0.8rem; text-align: right; border-bottom: 1px solid var(--gridline); }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th {
+  background: var(--page-plane); color: var(--text-muted); font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; border-bottom: 1px solid var(--border);
+}
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--accent-soft); }
+tr.risco { background: var(--critical-soft) !important; }
+tr.risco:hover { background: #fbdada !important; }
+.vazio { color: var(--text-muted); font-style: italic; font-size: 0.9rem; }
+.sobe, .desce { color: var(--critical); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* grafico (pagina do aluno) */
+.chart-card {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.3rem; max-width: 920px; margin-top: 1rem;
+}
