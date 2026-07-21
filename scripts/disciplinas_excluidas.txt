@@ -1,0 +1,4 @@
+# Uma disciplina por linha - essas ficam de fora do site (tabelas, chips,
+# medias gerais). Linhas comecando com # sao comentario. Edite livremente e
+# rode scripts/consolidar.py de novo pra aplicar.
+Frequência Monitorada

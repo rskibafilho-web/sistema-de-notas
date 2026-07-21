@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>{{ nome }} — Indicadores acadêmicos</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/chart.umd.min.js"></script>
+<style>
+  .chips label { border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.75rem;
+                 font-size: 0.83rem; cursor: pointer; background: var(--surface-1); color: var(--text-secondary); }
+  .chips label:has(input:checked) { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .chips input { margin-right: 0.3rem; }
+</style>
+</head>
+<body>
+
+<a class="voltar" href="/">&larr; voltar aos indicadores</a>
+<h1>{{ nome }}</h1>
+<p class="subtitulo">Evolução da turma ano a ano — cada ano é uma turma de alunos diferente avançando de série, então isto mostra a tendência do nível, não de um grupo fixo.</p>
+
+<div class="cards">
+  {% for r in resumo %}
+  <div class="card {% if r.media_turma is none %}sem-dados{% endif %}">
+    <div class="ano">{{ r.ano_letivo }}</div>
+    {% if r.media_turma is none %}
+      <div class="nota">sem dados</div>
+    {% else %}
+      <div class="nota">{{ '%.1f'|format(r.media_turma) }}</div>
+      <div class="contexto">
+        {% if r.desvio_turma is not none %}± {{ '%.1f'|format(r.desvio_turma) }} ·{% endif %}
+        {{ r.num_alunos }} aluno{{ 's' if r.num_alunos != 1 else '' }}
+        {% if r.faltas_media is not none %} · {{ '%.1f'|format(r.faltas_media) }} faltas/aluno{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Média por disciplina, ano a ano</h2>
+{% if disciplina_linhas %}
+<table>
+  <tr><th class="col-texto">Disciplina</th>{% for ano in anos_disciplina %}<th>{{ ano }}</th>{% endfor %}</tr>
+  {% for linha in disciplina_linhas %}
+  <tr>
+    <td class="col-texto">{{ linha.disciplina }}</td>
+    {% for ano in anos_disciplina %}
+      <td>{{ '%.1f'|format(linha[ano]) if linha[ano] == linha[ano] else '—' }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="vazio">Sem dados.</p>
+{% endif %}
+
+<h2>Evolução trimestral</h2>
+<div class="chips" id="chips-disciplina"></div>
+<div class="chart-card">
+  <canvas id="grafico"></canvas>
+</div>
+
+<script>
+const DADOS = {{ grafico | tojson }};
+const CORES = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#e34948'];
+
+const ctx = document.getElementById('grafico').getContext('2d');
+
+function datasetsBase() {
+  return [
+    {
+      label: 'mínima 6,0', data: DADOS.labels.map(() => 6.0), borderColor: '#d03b3b',
+      borderDash: [3, 3], borderWidth: 1.25, pointRadius: 0, fill: false,
+    },
+    {
+      label: 'média da turma', data: DADOS.media_turma, borderColor: '#4a3aa7',
+      borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#4a3aa7', fill: false,
+    },
+  ];
+}
+
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: DADOS.labels, datasets: datasetsBase() },
+  options: {
+    responsive: true,
+    scales: {
+      y: { min: 0, max: 10, grid: { color: '#e1e0d9' }, ticks: { color: '#898781' } },
+      x: { grid: { display: false }, ticks: { color: '#898781' } },
+    },
+    plugins: { legend: { position: 'bottom', labels: { color: '#52514e', usePointStyle: true } } },
+  },
+});
+
+const chipsDiv = document.getElementById('chips-disciplina');
+Object.keys(DADOS.disciplinas).forEach((disc, i) => {
+  const id = 'chip-' + i;
+  const label = document.createElement('label');
+  label.innerHTML = `<input type="checkbox" id="${id}"> ${disc}`;
+  chipsDiv.appendChild(label);
+  document.getElementById(id).addEventListener('change', (ev) => {
+    if (ev.target.checked) {
+      chart.data.datasets.push({
+        label: disc, data: DADOS.disciplinas[disc],
+        borderColor: CORES[i % CORES.length], borderWidth: 2, pointRadius: 3, fill: false,
+        _disciplina: disc,
+      });
+    } else {
+      chart.data.datasets = chart.data.datasets.filter(d => d._disciplina !== disc);
+    }
+    chart.update();
+  });
+});
+</script>
+
+</body>
+</html>

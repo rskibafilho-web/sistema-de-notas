@@ -97,16 +97,38 @@ h2 {
   font-size: 1.05rem; font-weight: 700; margin-top: 2.6rem; margin-bottom: 0.8rem;
   padding-bottom: 0.5rem; border-bottom: 1px solid var(--gridline);
 }
+
+/* secoes retrateis (<details>) - permite minimizar cada item da tela inicial */
+details.secao { margin-top: 2.6rem; }
+details.secao summary {
+  font-size: 1.05rem; font-weight: 700; padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--gridline); cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 0.45rem; color: var(--text-primary);
+}
+details.secao summary::-webkit-details-marker { display: none; }
+details.secao summary::before {
+  content: '▸'; color: var(--text-muted); font-size: 0.85em;
+  display: inline-block; transition: transform 0.15s;
+}
+details.secao[open] summary::before { transform: rotate(90deg); }
+details.secao summary:hover { color: var(--accent); }
+details.secao > *:not(summary) { margin-top: 0.8rem; }
 table {
   border-collapse: collapse; width: 100%; margin: 0 0 2.5rem; background: var(--surface-1);
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.88rem;
 }
 th, td { padding: 0.55rem 0.8rem; text-align: right; border-bottom: 1px solid var(--gridline); }
-th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+/* col-texto em vez de :nth-child - alinhamento por posicao quebra se uma
+   linha tiver menos celulas que as outras (ex: rowspan) */
+th.col-texto, td.col-texto { text-align: left; }
 th {
   background: var(--page-plane); color: var(--text-muted); font-size: 0.72rem;
   text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; border-bottom: 1px solid var(--border);
 }
+th.ordenavel { cursor: pointer; user-select: none; }
+th.ordenavel:hover { color: var(--accent); }
+th.ordenado-asc::after { content: ' ▲'; font-size: 0.7em; }
+th.ordenado-desc::after { content: ' ▼'; font-size: 0.7em; }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--accent-soft); }
 tr.risco { background: var(--critical-soft) !important; }

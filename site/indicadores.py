@@ -6,12 +6,32 @@ import pandas as pd
 PERIODOS_REGULARES = {"1º Trimestre", "2º Trimestre", "3º Trimestre"}
 
 
-def filtrar(df: pd.DataFrame, turma: str = "", disciplina: str = "") -> pd.DataFrame:
+def filtrar(df: pd.DataFrame, turma: str = "", disciplina: str = "", curso: str = "") -> pd.DataFrame:
+    if curso:
+        df = df[df["curso"] == curso]
     if turma:
         df = df[df["turma"] == turma]
     if disciplina:
         df = df[df["disciplina"] == disciplina]
     return df
+
+
+def apenas_matriculados(df: pd.DataFrame) -> pd.DataFrame:
+    """So mantem alunos cujo ultimo ano com dados e o ano mais recente
+    coletado.
+
+    O filtro de Status na tela de emissao do Gennera vem com so "Ativo"
+    marcado por padrao (confirmado ao vivo - ver MAPEAMENTO.md), e o script
+    de coleta nunca mexe nesse filtro. Ou seja, cada ano ja coletado so tem
+    quem estava com matricula Ativa naquele ano - um aluno que nao aparece
+    no ano mais recente genuinamente deixou de estar ativo (formou, saiu,
+    transferiu), nao e uma falha de coleta.
+    """
+    if df.empty:
+        return df
+    ultimo_ano_geral = df["ano_letivo"].max()
+    ultimo_ano_por_aluno = df.groupby("matricula")["ano_letivo"].transform("max")
+    return df[ultimo_ano_por_aluno == ultimo_ano_geral]
 
 
 def medias_por_aluno_disciplina_ano(df: pd.DataFrame) -> pd.DataFrame:
@@ -27,6 +47,22 @@ def medias_por_aluno_disciplina_ano(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
         .pivot_table(index=["aluno", "disciplina"], columns="ano_letivo", values="nota")
     )
+
+
+def media_geral_por_aluno_ano(df: pd.DataFrame) -> pd.DataFrame:
+    """Media geral do aluno (todas as disciplinas juntas), uma coluna por ano
+    letivo - visao resumida pra tela inicial (o detalhe por disciplina fica
+    na pagina do proprio aluno, ver medias_por_aluno_disciplina_ano)."""
+    regulares = df[df["periodo"].isin(PERIODOS_REGULARES)]
+    ultima_turma = df.sort_values("ano_letivo").groupby("aluno")["turma"].last()
+    medias = (
+        regulares.groupby(["aluno", "ano_letivo"])["nota"]
+        .mean()
+        .reset_index()
+        .pivot_table(index="aluno", columns="ano_letivo", values="nota")
+    )
+    medias.insert(0, "turma_atual", ultima_turma)
+    return medias
 
 
 def faltas_por_aluno_turma_ano(df: pd.DataFrame) -> pd.DataFrame:
@@ -184,3 +220,111 @@ def alerta_descolamento(resumo: list[dict]) -> str | None:
     if atual["media_aluno"] < anterior["media_aluno"] and atual["z"] < anterior["z"] - 0.5:
         return "Média e posição na turma caíram — o aluno descolou dos colegas. Prioridade de conversa."
     return None
+
+
+def evolucao_turma(df: pd.DataFrame, nome_turma: str) -> list[dict]:
+    """Media geral da turma (todas as disciplinas) por ano letivo, com numero
+    de alunos e media de faltas.
+
+    Compara o mesmo NOME de turma (ex: "6o Ano - 6o Ano") entre anos - cada
+    ano e uma turma de alunos diferente (a coorte avanca de serie), entao
+    isso mostra a tendencia do nivel ao longo do tempo, nao de um grupo fixo
+    de alunos (ver MAPEAMENTO.md - nao ha um id de coorte estavel nos dados).
+    """
+    turma_df = df[df["turma"] == nome_turma]
+    regulares = turma_df[turma_df["periodo"].isin(PERIODOS_REGULARES)]
+
+    linhas = []
+    for ano in sorted(turma_df["ano_letivo"].dropna().unique()):
+        ano_reg = regulares[regulares["ano_letivo"] == ano]
+        media_por_aluno = ano_reg.groupby("matricula")["nota"].mean()
+        faltas_por_aluno = turma_df[turma_df["ano_letivo"] == ano].groupby("matricula")["faltas"].sum()
+        linhas.append({
+            "ano_letivo": int(ano),
+            "media_turma": media_por_aluno.mean() if len(media_por_aluno) else None,
+            "desvio_turma": media_por_aluno.std() if len(media_por_aluno) else None,
+            "num_alunos": int(media_por_aluno.shape[0]),
+            "faltas_media": faltas_por_aluno.mean() if len(faltas_por_aluno) else None,
+        })
+    return linhas
+
+
+def evolucao_turma_por_disciplina(df: pd.DataFrame, nome_turma: str) -> pd.DataFrame:
+    """Media da turma por disciplina, uma coluna por ano letivo - usado na
+    pagina da turma e como comparativo na tabela de medias por aluno quando
+    uma turma especifica esta filtrada (item 4: turma vs aluno)."""
+    turma_df = df[df["turma"] == nome_turma]
+    regulares = turma_df[turma_df["periodo"].isin(PERIODOS_REGULARES)]
+    return (
+        regulares.groupby(["disciplina", "ano_letivo"])["nota"]
+        .mean()
+        .reset_index()
+        .pivot_table(index="disciplina", columns="ano_letivo", values="nota")
+    )
+
+
+def trajetoria_turma(df: pd.DataFrame, nome_turma: str) -> tuple[list[dict], dict]:
+    """Serie (ano, periodo) com a media geral da turma e por disciplina -
+    mesmo padrao de trajetoria_aluno, sem banda de comparacao (aqui a turma
+    e a propria referencia)."""
+    turma_df = df[df["turma"] == nome_turma].copy()
+    regulares = turma_df[turma_df["periodo"].isin(PERIODOS_REGULARES)].copy()
+    regulares["ordem_periodo"] = regulares["periodo"].map(ORDEM_PERIODO)
+
+    pontos_chave = (
+        regulares[["ano_letivo", "periodo", "ordem_periodo"]]
+        .drop_duplicates()
+        .sort_values(["ano_letivo", "ordem_periodo"])
+    )
+
+    todas_disciplinas = sorted(regulares["disciplina"].dropna().unique())
+    pontos = []
+    disciplinas_turma: dict[str, list] = {d: [] for d in todas_disciplinas}
+
+    for _, chave in pontos_chave.iterrows():
+        contexto = regulares[
+            (regulares["ano_letivo"] == chave["ano_letivo"]) & (regulares["periodo"] == chave["periodo"])
+        ]
+        media_por_aluno = contexto.groupby("matricula")["nota"].mean()
+        pontos.append({
+            "rotulo": f"{int(chave['ano_letivo'])} · {chave['periodo']}",
+            "media_turma": media_por_aluno.mean() if len(media_por_aluno) else None,
+        })
+        for d in todas_disciplinas:
+            nota_d = contexto[contexto["disciplina"] == d]["nota"].mean()
+            disciplinas_turma[d].append(nota_d if pd.notna(nota_d) else None)
+
+    return pontos, disciplinas_turma
+
+
+# colunas de identificacao/derivadas - tudo mais em consolidado.csv e nota de
+# um instrumento de avaliacao especifico (varia por disciplina/periodo: P1,
+# P2, TRAB1-5, REC1-2, EXM, PD, R1, R2...), entao a lista e descoberta em
+# tempo de execucao em vez de fixada aqui.
+COLUNAS_INFO = {
+    "aluno", "matricula", "curso", "ano_letivo", "periodo", "serie_turma",
+    "disciplina", "Média do Período", "Situação", "Total de Faltas",
+    "nota", "faltas", "turma",
+}
+
+
+def notas_detalhadas_aluno(df: pd.DataFrame, matricula: str) -> tuple[list[dict], list[str]]:
+    """Uma linha por (ano, periodo, disciplina) com a nota de cada
+    instrumento preenchido - prova (P1/P2/...), trabalho, recuperacao (REC1/
+    REC2) - lado a lado, para comparar visualmente antes/depois da
+    recuperacao em vez de so a media final do periodo.
+    """
+    aluno_df = df[df["matricula"] == matricula].copy()
+    aluno_df["ordem"] = aluno_df["periodo"].map(ORDEM_PERIODO).fillna(9)
+    aluno_df = aluno_df.sort_values(["ano_letivo", "ordem", "disciplina"])
+
+    candidatas = [c for c in df.columns if c not in COLUNAS_INFO]
+    instrumentos = [c for c in candidatas if aluno_df[c].notna().any()]
+
+    colunas = ["ano_letivo", "periodo", "disciplina"] + instrumentos + ["nota", "Situação"]
+    linhas = (
+        aluno_df[colunas]
+        .rename(columns={"nota": "media_periodo", "Situação": "situacao"})
+        .to_dict("records")
+    )
+    return linhas, instrumentos

@@ -30,16 +30,26 @@
   }
 </script>
 
-{% macro link_filtro(ano, turma, disciplina) -%}
-?ano={{ ano | urlencode }}&turma={{ turma | urlencode }}&disciplina={{ disciplina | urlencode }}
+{% macro link_filtro(ano, turma, disciplina, curso) -%}
+?ano={{ ano | urlencode }}&turma={{ turma | urlencode }}&disciplina={{ disciplina | urlencode }}&curso={{ curso | urlencode }}
 {%- endmacro %}
+
+<div class="filtro-grupo">
+  <p class="filtro-titulo">Segmento</p>
+  <div class="chips">
+    <a class="chip {% if not curso_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, '', '', '') }}">Todos</a>
+    {% for s in segmentos %}
+    <a class="chip {% if s == curso_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, '', '', s) }}">{{ s }}</a>
+    {% endfor %}
+  </div>
+</div>
 
 <div class="filtro-grupo">
   <p class="filtro-titulo">Ano letivo</p>
   <div class="chips">
-    <a class="chip {% if not ano_sel %}ativo{% endif %}" href="{{ link_filtro('', turma_sel, disciplina_sel) }}">Todos</a>
+    <a class="chip {% if not ano_sel %}ativo{% endif %}" href="{{ link_filtro('', turma_sel, disciplina_sel, curso_sel) }}">Todos</a>
     {% for a in anos_disponiveis %}
-    <a class="chip {% if a|string == ano_sel %}ativo{% endif %}" href="{{ link_filtro(a, turma_sel, disciplina_sel) }}">{{ a }}</a>
+    <a class="chip {% if a|string == ano_sel %}ativo{% endif %}" href="{{ link_filtro(a, turma_sel, disciplina_sel, curso_sel) }}">{{ a }}</a>
     {% endfor %}
   </div>
 </div>
@@ -47,9 +57,9 @@
 <div class="filtro-grupo">
   <p class="filtro-titulo">Turma</p>
   <div class="chips">
-    <a class="chip {% if not turma_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, '', disciplina_sel) }}">Todas</a>
+    <a class="chip {% if not turma_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, '', disciplina_sel, curso_sel) }}">Todas</a>
     {% for t in turmas %}
-    <a class="chip {% if t == turma_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, t, disciplina_sel) }}">{{ t }}</a>
+    <a class="chip {% if t == turma_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, t, disciplina_sel, curso_sel) }}">{{ t }}</a>
     {% endfor %}
   </div>
 </div>
@@ -57,21 +67,45 @@
 <div class="filtro-grupo">
   <p class="filtro-titulo">Disciplina</p>
   <div class="chips">
-    <a class="chip {% if not disciplina_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, turma_sel, '') }}">Todas</a>
+    <a class="chip {% if not disciplina_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, turma_sel, '', curso_sel) }}">Todas</a>
     {% for d in disciplinas %}
-    <a class="chip {% if d == disciplina_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, turma_sel, d) }}">{{ d }}</a>
+    <a class="chip {% if d == disciplina_sel %}ativo{% endif %}" href="{{ link_filtro(ano_sel, turma_sel, d, curso_sel) }}">{{ d }}</a>
     {% endfor %}
   </div>
 </div>
 
-<h2>1. Média por aluno / disciplina, ano a ano</h2>
+{% if turma_sel %}
+<p><a href="/turma/{{ turma_sel | urlencode }}">→ Ver evolução da turma "{{ turma_sel }}" ano a ano</a></p>
+{% endif %}
+
+{% if media_turma_disciplina %}
+<details class="secao" open>
+<summary>Média da turma "{{ turma_sel }}" por disciplina, ano a ano</summary>
+<p class="subtitulo" style="margin-bottom:0.8rem">Referência para comparar com a tabela de alunos logo abaixo.</p>
+<table>
+  <tr><th class="col-texto">Disciplina</th>{% for ano in anos_media_turma %}<th>{{ ano }}</th>{% endfor %}</tr>
+  {% for linha in media_turma_disciplina %}
+  <tr>
+    <td class="col-texto">{{ linha.disciplina }}</td>
+    {% for ano in anos_media_turma %}
+      <td>{{ '%.1f'|format(linha[ano]) if linha[ano] == linha[ano] else '—' }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+</details>
+{% endif %}
+
+<details class="secao" open>
+<summary>1. Média geral por aluno, ano a ano</summary>
+<p class="subtitulo" style="margin-bottom:0.8rem">Clique no nome do aluno para ver o detalhe por disciplina.</p>
 {% if medias %}
 <table>
-  <tr><th>Aluno</th><th>Disciplina</th>{% for ano in anos_medias %}<th>{{ ano }}</th>{% endfor %}</tr>
+  <tr><th class="col-texto">Aluno</th><th class="col-texto">Turma atual</th>{% for ano in anos_medias %}<th>{{ ano }}</th>{% endfor %}</tr>
   {% for linha in medias %}
   <tr>
-    <td><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
-    <td>{{ linha.disciplina }}</td>
+    <td class="col-texto"><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
+    <td class="col-texto">{{ linha.turma_atual }}</td>
     {% for ano in anos_medias %}
       <td>{{ '%.1f'|format(linha[ano]) if linha[ano] == linha[ano] else '—' }}</td>
     {% endfor %}
@@ -81,15 +115,17 @@
 {% else %}
 <p class="vazio">Sem dados para esse filtro.</p>
 {% endif %}
+</details>
 
-<h2>2. Evolução de faltas por aluno / turma, ano a ano</h2>
+<details class="secao" open>
+<summary>2. Evolução de faltas por aluno / turma, ano a ano</summary>
 {% if faltas %}
 <table>
-  <tr><th>Aluno</th><th>Turma atual</th>{% for ano in anos_faltas %}<th>{{ ano }}</th>{% endfor %}</tr>
+  <tr><th class="col-texto">Aluno</th><th class="col-texto">Turma atual</th>{% for ano in anos_faltas %}<th>{{ ano }}</th>{% endfor %}</tr>
   {% for linha in faltas %}
   <tr>
-    <td><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
-    <td>{{ linha.turma_atual }}</td>
+    <td class="col-texto"><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
+    <td class="col-texto">{{ linha.turma_atual }}</td>
     {% for ano in anos_faltas %}
       <td>{{ linha[ano]|int if linha[ano] == linha[ano] else '—' }}</td>
     {% endfor %}
@@ -99,14 +135,16 @@
 {% else %}
 <p class="vazio">Sem dados para esse filtro.</p>
 {% endif %}
+</details>
 
-<h2>3. Alunos em risco (faltas subindo + nota caindo no mesmo período)</h2>
+<details class="secao" open>
+<summary>3. Alunos em risco (faltas subindo + nota caindo no mesmo período)</summary>
 {% if risco %}
 <table>
-  <tr><th>Aluno</th><th>Ano</th><th>Variação de nota</th><th>Variação de faltas</th></tr>
+  <tr><th class="col-texto">Aluno</th><th>Ano</th><th>Variação de nota</th><th>Variação de faltas</th></tr>
   {% for linha in risco %}
   <tr class="risco">
-    <td><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
+    <td class="col-texto"><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
     <td>{{ linha.ano_letivo }}</td>
     <td class="desce">{{ '%.1f'|format(linha.delta_nota) }}</td>
     <td class="sobe">+{{ linha.delta_faltas|int }}</td>
@@ -116,6 +154,45 @@
 {% else %}
 <p class="vazio">Nenhum aluno com essa combinação (nota caindo e faltas subindo) para esse filtro.</p>
 {% endif %}
+</details>
+
+<script>
+// Ordenacao clicavel nas tabelas: clique num cabecalho ordena por aquela
+// coluna (nome do aluno, turma atual, ou qualquer ano) - clique de novo
+// inverte a direcao. Nao precisa de JS nenhum no backend, so reordena as
+// linhas ja renderizadas.
+function ordenarTabela(tabela, indiceColuna, numerico) {
+  const linhas = Array.from(tabela.querySelectorAll('tr')).slice(1);
+  const mesmaColuna = tabela.dataset.sortCol == indiceColuna;
+  const asc = mesmaColuna ? tabela.dataset.sortDir !== 'asc' : true;
+  linhas.sort((a, b) => {
+    let va = a.cells[indiceColuna].textContent.trim();
+    let vb = b.cells[indiceColuna].textContent.trim();
+    if (numerico) {
+      va = va === '—' ? -Infinity : parseFloat(va.replace(',', '.'));
+      vb = vb === '—' ? -Infinity : parseFloat(vb.replace(',', '.'));
+      return asc ? va - vb : vb - va;
+    }
+    return asc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+  });
+  linhas.forEach(l => tabela.appendChild(l));
+  tabela.dataset.sortCol = indiceColuna;
+  tabela.dataset.sortDir = asc ? 'asc' : 'desc';
+  tabela.querySelectorAll('th').forEach((th, i) => {
+    th.classList.toggle('ordenado-asc', i === indiceColuna && asc);
+    th.classList.toggle('ordenado-desc', i === indiceColuna && !asc);
+  });
+}
+
+document.querySelectorAll('table').forEach(tabela => {
+  const linhaCabecalho = tabela.querySelector('tr');
+  if (!linhaCabecalho) return;
+  Array.from(linhaCabecalho.cells).forEach((th, i) => {
+    th.classList.add('ordenavel');
+    th.addEventListener('click', () => ordenarTabela(tabela, i, !th.classList.contains('col-texto')));
+  });
+});
+</script>
 
 </body>
 </html>

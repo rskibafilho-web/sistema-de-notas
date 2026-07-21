@@ -62,7 +62,11 @@ Botão **Filtros** → painel com, nesta ordem:
 
 1. **Calendário Acadêmico** (= ano letivo) — obrigatório, dispara o resto
 2. **Curso** → **Currículo** → **Módulo** → **Turma** (cada um só carrega depois do anterior)
-3. **Status** (Ativo / Cancelado / Aberto / Reservado / Encerrado)
+3. **Status** (Ativo / Cancelado / Aberto / Reservado / Encerrado) — **vem com só "Ativo"
+   marcado por padrão** (confirmado ao vivo). O `coletar.py` nunca mexe nesse filtro, então
+   toda coleta já feita só trouxe alunos com matrícula Ativa naquele ano letivo. Na prática:
+   "último ano em que um aluno aparece nos dados" é um proxy confiável de status de matrícula
+   real, sem precisar de coleta extra.
 4. **Matrícula** (aluno específico, opcional)
 5. **Período** (1º / 2º / 3º Trimestre, Exame Final, Recuperação 1º/2º/3º…)
 6. Botão **Renderizar**
