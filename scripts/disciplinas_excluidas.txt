@@ -2,3 +2,4 @@
 # medias gerais). Linhas comecando com # sao comentario. Edite livremente e
 # rode scripts/consolidar.py de novo pra aplicar.
 Frequência Monitorada
+Filosofia Socioemocional

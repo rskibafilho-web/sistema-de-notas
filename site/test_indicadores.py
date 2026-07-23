@@ -8,6 +8,7 @@ from indicadores import (
     alunos_em_risco,
     apenas_matriculados,
     cruzamento_faltas_notas,
+    dashboard_por_turma,
     evolucao_turma,
     evolucao_turma_por_disciplina,
     faltas_por_aluno_turma_ano,
@@ -16,6 +17,7 @@ from indicadores import (
     medias_por_aluno_disciplina_ano,
     notas_detalhadas_aluno,
     resumo_anual_aluno,
+    resumo_geral,
     trajetoria_aluno,
 )
 
@@ -183,6 +185,60 @@ def test_notas_detalhadas_aluno_pega_instrumentos_preenchidos():
     assert linhas[1]["REC1"] == 6.5  # nota pos-recuperacao visivel ao lado da prova regular
 
 
+def test_dashboard_por_turma_agrupa_e_calcula():
+    df = pd.DataFrame([
+        # 6A: Ana (media geral 8.0->6.0, cai + faltas sobem = risco), Bruno (5->7 sobe)
+        {"matricula": "1", "aluno": "Ana", "turma": "6A", "curso": "Fund II", "disciplina": "Mat", "ano_letivo": 2024, "periodo": "1º Trimestre", "nota": 8.0, "faltas": 1},
+        {"matricula": "1", "aluno": "Ana", "turma": "6A", "curso": "Fund II", "disciplina": "Mat", "ano_letivo": 2025, "periodo": "1º Trimestre", "nota": 6.0, "faltas": 5},
+        {"matricula": "2", "aluno": "Bruno", "turma": "6A", "curso": "Fund II", "disciplina": "Mat", "ano_letivo": 2024, "periodo": "1º Trimestre", "nota": 5.0, "faltas": 4},
+        {"matricula": "2", "aluno": "Bruno", "turma": "6A", "curso": "Fund II", "disciplina": "Mat", "ano_letivo": 2025, "periodo": "1º Trimestre", "nota": 7.0, "faltas": 1},
+    ])
+    turmas = dashboard_por_turma(df)
+    assert len(turmas) == 1
+    t = turmas[0]
+    assert t["turma"] == "6A"
+    assert t["num_alunos"] == 2
+    assert t["media"] == 6.5  # media dos latests (6.0 da Ana + 7.0 do Bruno)
+    assert t["num_risco"] == 1  # so a Ana
+
+    # ranking ordenado por latest desc: Bruno (7.0) antes de Ana (6.0)
+    assert [a["aluno"] for a in t["alunos"]] == ["Bruno", "Ana"]
+    ana = next(a for a in t["alunos"] if a["aluno"] == "Ana")
+    assert ana["latest"] == 6.0
+    assert round(ana["trend"], 1) == -2.0
+    assert ana["tend_dir"] == "down"
+    assert ana["risco"] is True
+    assert ana["faltas"] == 5
+
+    # quartis dos latests [6.0, 7.0]: mediana no meio
+    assert t["quartis"]["min"] == 6.0
+    assert t["quartis"]["max"] == 7.0
+    assert t["quartis"]["mediana"] == 6.5
+
+    resumo = resumo_geral(turmas)
+    assert resumo["media_geral"] == 6.5
+    assert resumo["em_risco"] == 1
+    assert round(resumo["maior_queda"], 1) == -2.0  # queda da Ana
+
+
+def test_dashboard_ordena_por_progressao_escolar():
+    # nomes fora de ordem alfabetica/natural; esperado: 6º->9º Ano, depois 1ª->3ª Série
+    df = pd.DataFrame([
+        {"matricula": m, "aluno": m, "turma": t, "curso": c, "disciplina": "Mat",
+         "ano_letivo": 2026, "periodo": "1º Trimestre", "nota": 7.0, "faltas": 0}
+        for m, t, c in [
+            ("a", "3ª Série - 3ª Série", "Ensino Médio"),
+            ("b", "6º Ano - 6º Ano", "Ensino Fundamental II"),
+            ("c", "1ª Série - 1ª Série", "Ensino Médio"),
+            ("d", "9º Ano - 9º Ano", "Ensino Fundamental II"),
+        ]
+    ])
+    turmas = dashboard_por_turma(df)
+    assert [t["turma"] for t in turmas] == [
+        "6º Ano - 6º Ano", "9º Ano - 9º Ano", "1ª Série - 1ª Série", "3ª Série - 3ª Série",
+    ]
+
+
 if __name__ == "__main__":
     test_medias_ignora_exame_final()
     test_media_geral_por_aluno_ano_junta_disciplinas()
@@ -197,4 +253,6 @@ if __name__ == "__main__":
     test_filtrar_por_curso_segmento()
     test_apenas_matriculados_exclui_quem_parou_antes_do_ultimo_ano()
     test_notas_detalhadas_aluno_pega_instrumentos_preenchidos()
+    test_dashboard_por_turma_agrupa_e_calcula()
+    test_dashboard_ordena_por_progressao_escolar()
     print("OK - indicadores conferem")

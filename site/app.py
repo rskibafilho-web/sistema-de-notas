@@ -20,17 +20,15 @@ from flask import Flask, abort, render_template, request
 
 from indicadores import (
     alerta_descolamento,
-    alunos_em_risco,
     apenas_matriculados,
-    cruzamento_faltas_notas,
+    dashboard_por_turma,
     evolucao_turma,
     evolucao_turma_por_disciplina,
-    faltas_por_aluno_turma_ano,
     filtrar,
-    media_geral_por_aluno_ano,
     medias_por_aluno_disciplina_ano,
     notas_detalhadas_aluno,
     resumo_anual_aluno,
+    resumo_geral,
     trajetoria_aluno,
     trajetoria_turma,
 )
@@ -77,39 +75,39 @@ def index():
     anos_disponiveis = sorted(int(a) for a in df["ano_letivo"].dropna().unique())
 
     filtrado = filtrar(df, turma_sel, disciplina_sel, curso_sel)
-
-    # medias e faltas: restringe as LINHAS ao ano escolhido antes de agregar,
-    # entao a tabela vira uma unica coluna daquele ano (e alunos sem dados
-    # naquele ano somem, em vez de aparecer com tudo vazio).
-    filtrado_ano = filtrado[filtrado["ano_letivo"] == int(ano_sel)] if ano_sel else filtrado
-
-    # so a media geral (todas as disciplinas juntas) aqui - o detalhe por
-    # disciplina fica na pagina do proprio aluno, pra nao poluir a lista geral.
-    medias = media_geral_por_aluno_ano(filtrado_ano)
-    anos_medias = sorted(int(a) for a in medias.columns if a != "turma_atual")
-
-    faltas = faltas_por_aluno_turma_ano(filtrado_ano)
-    anos_faltas = sorted(int(a) for a in faltas.columns if a != "turma_atual")
-
-    # risco/cruzamento precisa do ano anterior pra calcular a variacao, entao
-    # calcula sobre TODOS os anos e so filtra o resultado (a variacao "que
-    # terminou" no ano escolhido), nunca as linhas de entrada.
-    cruzamento = cruzamento_faltas_notas(filtrado)
     if ano_sel:
-        cruzamento = cruzamento[cruzamento["ano_letivo"] == int(ano_sel)]
-    risco = alunos_em_risco(cruzamento).sort_values("delta_faltas", ascending=False)
+        filtrado = filtrado[filtrado["ano_letivo"] == int(ano_sel)]
+
+    # dashboard por turma (cada card = uma turma, com media, quartis, ranking
+    # de alunos colorido, tendencia e risco). Substitui as 3 tabelas planas
+    # antigas. _limpo troca NaN por None pra nao quebrar o template.
+    turmas_dash = dashboard_por_turma(filtrado)
+    for t in turmas_dash:
+        t["media"] = _limpo(t["media"])
+        if t["quartis"]:
+            t["quartis"] = {k: _limpo(v) for k, v in t["quartis"].items()}
+        for a in t["alunos"]:
+            a["medias"] = [_limpo(v) for v in a["medias"]]
+            a["latest"] = _limpo(a["latest"])
+            a["trend"] = _limpo(a["trend"])
+    resumo = resumo_geral(turmas_dash)
+    resumo = {k: _limpo(v) for k, v in resumo.items()}
+
+    # listas por tras dos tiles clicaveis "Alunos em risco" e "Maior queda"
+    lista_risco, lista_queda = [], []
+    for t in turmas_dash:
+        for a in t["alunos"]:
+            item = {"aluno": a["aluno"], "matricula": a["matricula"],
+                    "turma": a["turma"], "latest": a["latest"], "trend": a["trend"]}
+            if a["risco"]:
+                lista_risco.append(item)
+            if a["trend"] is not None and a["trend"] < 0:
+                lista_queda.append(item)
+    lista_risco.sort(key=lambda x: (x["trend"] is None, x["trend"] or 0))
+    lista_queda.sort(key=lambda x: x["trend"])
+    lista_queda = lista_queda[:15]
 
     matriculas = df.drop_duplicates("aluno").set_index("aluno")["matricula"].to_dict()
-
-    # item 4: com uma turma especifica filtrada, mostra a media DA TURMA por
-    # disciplina/ano como referencia direta pra comparar com a tabela de
-    # medias por aluno logo abaixo.
-    media_turma_disciplina = None
-    anos_media_turma = []
-    if turma_sel:
-        tabela_turma = evolucao_turma_por_disciplina(df, turma_sel)
-        anos_media_turma = sorted(int(a) for a in tabela_turma.columns)
-        media_turma_disciplina = tabela_turma.reset_index().to_dict("records")
 
     return render_template(
         "index.html",
@@ -121,16 +119,13 @@ def index():
         turma_sel=turma_sel,
         disciplina_sel=disciplina_sel,
         ano_sel=ano_sel,
-        medias=medias.reset_index().to_dict("records"),
-        anos_medias=anos_medias,
-        faltas=faltas.reset_index().to_dict("records"),
-        anos_faltas=anos_faltas,
-        risco=risco.to_dict("records"),
+        turmas_dash=turmas_dash,
+        resumo=resumo,
+        lista_risco=lista_risco,
+        lista_queda=lista_queda,
         total_alunos=df["aluno"].nunique(),
         total_anos=anos_disponiveis,
         matriculas=matriculas,
-        media_turma_disciplina=media_turma_disciplina,
-        anos_media_turma=anos_media_turma,
     )
 
 

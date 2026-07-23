@@ -1,6 +1,8 @@
 """Calculo dos 3 indicadores pedidos, separado das rotas Flask para ser
 testavel sem servidor (ver test_indicadores.py).
 """
+import re
+
 import pandas as pd
 
 PERIODOS_REGULARES = {"1º Trimestre", "2º Trimestre", "3º Trimestre"}
@@ -295,6 +297,141 @@ def trajetoria_turma(df: pd.DataFrame, nome_turma: str) -> tuple[list[dict], dic
             disciplinas_turma[d].append(nota_d if pd.notna(nota_d) else None)
 
     return pontos, disciplinas_turma
+
+
+# ordem dos segmentos (Fundamental antes de Medio) para a progressao escolar
+_ORDEM_CURSO = {"fundamental": 0, "médio": 1, "medio": 1}
+
+
+def _ordem_turma(nome: str, curso: str) -> tuple:
+    """Chave de ordenacao na progressao escolar: 6º->9º Ano (Fund II), depois
+    1ª->3ª Série (EM). Extrai o numero da serie do nome da turma e usa o
+    segmento como criterio primario."""
+    curso_l = (curso or "").lower()
+    curso_rank = next((v for k, v in _ORDEM_CURSO.items() if k in curso_l), 9)
+    m = re.match(r"\s*(\d+)", nome or "")
+    serie = int(m.group(1)) if m else 99
+    return (curso_rank, serie, nome or "")
+
+
+def _quartis(valores: list) -> dict | None:
+    """min / Q1 / mediana / Q3 / max de uma lista de notas, para a barra de
+    quartis (box plot horizontal) no card da turma."""
+    if not valores:
+        return None
+    s = pd.Series(valores)
+    return {
+        "min": float(s.min()),
+        "q1": float(s.quantile(0.25)),
+        "mediana": float(s.quantile(0.5)),
+        "q3": float(s.quantile(0.75)),
+        "max": float(s.max()),
+    }
+
+
+def _latest_e_tendencia(valores: dict, anos: list):
+    """Ultima nota com dado + variacao pro ano anterior com dado. Ignora anos
+    sem nota, entao a tendencia compara os dois anos reais mais recentes."""
+    seq = [valores[a] for a in anos if pd.notna(valores.get(a))]
+    if not seq:
+        return None, None
+    latest = seq[-1]
+    trend = (seq[-1] - seq[-2]) if len(seq) >= 2 else None
+    return latest, trend
+
+
+def _risco_por_aluno(df: pd.DataFrame) -> dict:
+    """{aluno: True} se a transicao MAIS RECENTE do aluno teve nota caindo e
+    faltas subindo (mesmo criterio de alunos_em_risco, mas so a ultima)."""
+    cruz = cruzamento_faltas_notas(df)
+    risco = {}
+    for aluno, grupo in cruz.sort_values("ano_letivo").groupby("aluno"):
+        ultima = grupo.iloc[-1]
+        risco[aluno] = bool(ultima["delta_nota"] < 0 and ultima["delta_faltas"] > 0)
+    return risco
+
+
+def dashboard_por_turma(df: pd.DataFrame) -> list[dict]:
+    """Um card por turma (agrupado pela turma ATUAL do aluno), com media da
+    turma, distribuicao das notas, contagem em risco e o ranking de alunos
+    (media por ano + tendencia + faltas + flag de risco). Base da tela inicial.
+    """
+    if df.empty:
+        return []
+
+    medias = media_geral_por_aluno_ano(df)
+    faltas = faltas_por_aluno_turma_ano(df)
+    anos = sorted(c for c in medias.columns if c != "turma_atual")
+    risco = _risco_por_aluno(df)
+    curso_por_turma = df.drop_duplicates("turma").set_index("turma")["curso"].to_dict()
+    matricula_por_aluno = df.drop_duplicates("aluno").set_index("aluno")["matricula"].to_dict()
+
+    alunos = []
+    for aluno, row in medias.iterrows():
+        vals = {a: row.get(a) for a in anos}
+        latest, trend = _latest_e_tendencia(vals, anos)
+        faltas_vals = {a: faltas.loc[aluno].get(a) for a in anos} if aluno in faltas.index else {}
+        faltas_latest, _ = _latest_e_tendencia(faltas_vals, anos)
+        if trend is None:
+            tend_dir = "flat"
+        elif trend > 0.05:
+            tend_dir = "up"
+        elif trend < -0.05:
+            tend_dir = "down"
+        else:
+            tend_dir = "flat"
+        alunos.append({
+            "aluno": aluno,
+            "matricula": matricula_por_aluno.get(aluno, ""),
+            "turma": row["turma_atual"],
+            "medias": [vals[a] for a in anos],
+            "latest": latest,
+            "trend": trend,
+            "tend_dir": tend_dir,
+            "faltas": int(faltas_latest) if faltas_latest is not None else None,
+            "risco": risco.get(aluno, False),
+        })
+
+    turmas = []
+    for nome_turma in sorted(set(a["turma"] for a in alunos if a["turma"] is not None)):
+        do_turma = [a for a in alunos if a["turma"] == nome_turma]
+        do_turma.sort(key=lambda a: (a["latest"] is None, -(a["latest"] or 0)))
+        latests = [a["latest"] for a in do_turma if a["latest"] is not None]
+        media = sum(latests) / len(latests) if latests else None
+
+        turmas.append({
+            "turma": nome_turma,
+            "curso": curso_por_turma.get(nome_turma, ""),
+            "num_alunos": len(do_turma),
+            "media": media,
+            "num_risco": sum(1 for a in do_turma if a["risco"]),
+            "quartis": _quartis(latests),
+            "alunos": do_turma,
+            "anos": [int(a) for a in anos],
+        })
+
+    # progressao escolar: 6º->9º Ano, depois 1ª->3ª Série do EM
+    turmas.sort(key=lambda t: _ordem_turma(t["turma"], t["curso"]))
+    return turmas
+
+
+def resumo_geral(turmas: list[dict]) -> dict:
+    """Numeros-sintese pra faixa do topo: media geral, % acima de 6, total em
+    risco e maior queda (tendencia mais negativa) entre todos os alunos."""
+    latests, trends, em_risco = [], [], 0
+    for t in turmas:
+        em_risco += t["num_risco"]
+        for a in t["alunos"]:
+            if a["latest"] is not None:
+                latests.append(a["latest"])
+            if a["trend"] is not None:
+                trends.append(a["trend"])
+    return {
+        "media_geral": sum(latests) / len(latests) if latests else None,
+        "pct_acima_6": round(sum(1 for v in latests if v >= 6) / len(latests) * 100) if latests else None,
+        "em_risco": em_risco,
+        "maior_queda": min(trends) if trends else None,
+    }
 
 
 # colunas de identificacao/derivadas - tudo mais em consolidado.csv e nota de

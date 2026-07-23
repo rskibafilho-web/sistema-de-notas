@@ -11,6 +11,8 @@
   --accent-soft: #ece8fb;
   --good: #0ca30c;
   --good-soft: #e5f6e5;
+  --warn: #b26a00;
+  --warn-soft: #fbf0dc;
   --critical: #d03b3b;
   --critical-soft: #fdecec;
 }
@@ -141,3 +143,70 @@ tr.risco:hover { background: #fbdada !important; }
   background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
   padding: 1.3rem; max-width: 920px; margin-top: 1rem;
 }
+
+/* controles do grafico (modo + toggles) */
+.controles-grafico { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 .8rem; }
+.controles-grafico .opt { font-size: .85rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: .35rem; }
+.controles-grafico .opt input { cursor: pointer; }
+/* seletor de modo do grafico (Continuo / Sobrepor anos) */
+.modo-group { display: inline-flex; gap: 0; border: 1px solid var(--border); border-radius: 999px;
+              overflow: hidden; }
+.modo-btn { border: none; background: var(--surface-1); color: var(--text-secondary);
+            padding: .4rem 1rem; font-size: .85rem; cursor: pointer; font-family: inherit; }
+.modo-btn + .modo-btn { border-left: 1px solid var(--border); }
+.modo-btn:hover { background: var(--accent-soft); }
+.modo-btn.ativo { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* ===== tela inicial: faixa-resumo + cards de turma ===== */
+.tiles { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1.6rem 0 2rem; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+        padding: .9rem 1.2rem; min-width: 150px; box-shadow: 0 1px 2px rgba(11,11,11,.04); }
+.tile .rot { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); font-weight: 600; }
+.tile .val { font-size: 1.8rem; font-weight: 700; margin-top: .15rem; font-variant-numeric: tabular-nums; }
+.tile .val.bad { color: var(--critical); } .tile .val.good { color: var(--good); }
+
+details.turma { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+                margin-bottom: 1.1rem; overflow: hidden; box-shadow: 0 1px 3px rgba(11,11,11,.05); }
+.turma-head { display: flex; align-items: center; gap: 1.5rem; padding: 1rem 1.3rem; cursor: pointer;
+              list-style: none; flex-wrap: wrap; }
+.turma-head::-webkit-details-marker { display: none; }
+.turma-head::before { content: '▸'; color: var(--text-muted); font-size: .9em; transition: transform .15s; }
+details.turma[open] .turma-head::before { transform: rotate(90deg); }
+details.turma[open] .turma-head { border-bottom: 1px solid var(--gridline); }
+.turma-nome { font-size: 1.05rem; font-weight: 700; }
+.turma-nome small { display: block; font-weight: 400; color: var(--text-muted); font-size: .76rem;
+                    text-transform: uppercase; letter-spacing: .03em; }
+.turma-media { text-align: center; }
+.turma-media .n { font-size: 1.9rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+                  padding: .1rem .5rem; border-radius: 8px; display: inline-block; }
+.turma-media .l { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-top: .2rem; }
+/* barra de quartis (box plot horizontal) da turma */
+.quartil-wrap { text-align: center; }
+.quartil { position: relative; width: 160px; height: 22px; }
+.quartil::before { /* trilho 0-10 */
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+  background: var(--gridline); transform: translateY(-50%);
+}
+.quartil .haste { position: absolute; top: 50%; height: 2px; background: var(--text-muted);
+                  transform: translateY(-50%); }
+.quartil .caixa { position: absolute; top: 50%; height: 13px; background: var(--accent-soft);
+                  border: 1px solid var(--accent); border-radius: 3px; transform: translateY(-50%); }
+.quartil .mediana { position: absolute; top: 50%; width: 2px; height: 17px; background: var(--accent);
+                    transform: translate(-1px, -50%); }
+.quartil-wrap .l { font-size: .68rem; color: var(--text-muted); margin-top: .3rem; }
+.risco-badge { margin-left: auto; background: var(--critical-soft); color: var(--critical); font-weight: 600;
+               font-size: .8rem; padding: .3rem .7rem; border-radius: 999px; white-space: nowrap; }
+.ver { color: var(--accent); text-decoration: none; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+details.turma:not([open]) .ver, details.turma:not([open]) .risco-badge:first-of-type { }
+
+/* pilula de nota colorida e tendencia */
+.nota { display: inline-block; min-width: 34px; padding: .12rem .35rem; border-radius: 6px; font-weight: 600; }
+.g-alto { background: var(--good-soft); color: var(--good); }
+.g-med  { background: var(--warn-soft); color: var(--warn); }
+.g-baixo{ background: var(--critical-soft); color: var(--critical); }
+.g-vazio{ color: var(--text-muted); }
+.tend { font-weight: 700; }
+.tend.up { color: var(--good); } .tend.down { color: var(--critical); } .tend.flat { color: var(--text-muted); }
+tr.linha-risco { background: #fdf4f4; }
+.tag-risco { font-size: .68rem; font-weight: 700; text-transform: uppercase; color: var(--critical);
+             background: var(--critical-soft); padding: .05rem .35rem; border-radius: 4px; margin-left: .3rem; }

@@ -74,125 +74,73 @@
   </div>
 </div>
 
-{% if turma_sel %}
-<p><a href="/turma/{{ turma_sel | urlencode }}">→ Ver evolução da turma "{{ turma_sel }}" ano a ano</a></p>
-{% endif %}
+{% macro classe_nota(v) -%}
+{% if v is none %}g-vazio{% elif v >= 8 %}g-alto{% elif v >= 6 %}g-med{% else %}g-baixo{% endif %}
+{%- endmacro %}
 
-{% if media_turma_disciplina %}
-<details class="secao" open>
-<summary>Média da turma "{{ turma_sel }}" por disciplina, ano a ano</summary>
-<p class="subtitulo" style="margin-bottom:0.8rem">Referência para comparar com a tabela de alunos logo abaixo.</p>
-<table>
-  <tr><th class="col-texto">Disciplina</th>{% for ano in anos_media_turma %}<th>{{ ano }}</th>{% endfor %}</tr>
-  {% for linha in media_turma_disciplina %}
-  <tr>
-    <td class="col-texto">{{ linha.disciplina }}</td>
-    {% for ano in anos_media_turma %}
-      <td>{{ '%.1f'|format(linha[ano]) if linha[ano] == linha[ano] else '—' }}</td>
+{# num: formata com 1 casa e virgula decimal (pt-BR); sinal=true mostra +/- #}
+{% macro num(v, sinal=false) -%}
+{%- if v is none -%}—{%- elif sinal -%}{{ ('%+.1f'|format(v)) | replace('.', ',') }}{%- else -%}{{ ('%.1f'|format(v)) | replace('.', ',') }}{%- endif -%}
+{%- endmacro %}
+
+{% macro pilula(v) -%}
+<span class="nota {{ classe_nota(v) }}">{{ num(v) }}</span>
+{%- endmacro %}
+
+<!-- FAIXA-RESUMO -->
+<div class="tiles">
+  <div class="tile"><div class="rot">Média geral</div>
+    <div class="val">{{ num(resumo.media_geral) }}</div></div>
+  <div class="tile"><div class="rot">Acima de 6,0</div>
+    <div class="val good">{{ resumo.pct_acima_6 ~ '%' if resumo.pct_acima_6 is not none else '—' }}</div></div>
+  <div class="tile"><div class="rot">Alunos em risco</div>
+    <div class="val {{ 'bad' if resumo.em_risco else '' }}">{{ resumo.em_risco }}</div></div>
+  <div class="tile"><div class="rot">Maior queda</div>
+    <div class="val {{ 'bad' if resumo.maior_queda is not none and resumo.maior_queda < 0 else '' }}">
+      {{ num(resumo.maior_queda, sinal=true) }}</div></div>
+</div>
+
+<!-- CARDS DE TURMA -->
+{% if turmas_dash %}
+{% for t in turmas_dash %}
+<details class="turma">
+  <summary class="turma-head">
+    <div class="turma-nome">{{ t.turma }}<small>{{ t.curso }} · {{ t.num_alunos }} aluno{{ 's' if t.num_alunos != 1 else '' }}</small></div>
+    <div class="turma-media"><div class="n {{ classe_nota(t.media) }}">{{ num(t.media) }}</div><div class="l">média turma</div></div>
+    {% if t.quartis %}
+    <div class="quartil-wrap" title="Metade da turma está na faixa da caixa; o traço é a mediana.">
+      <div class="quartil">
+        <div class="haste" style="left:{{ t.quartis.min * 10 }}%; width:{{ (t.quartis.max - t.quartis.min) * 10 }}%"></div>
+        <div class="caixa" style="left:{{ t.quartis.q1 * 10 }}%; width:{{ (t.quartis.q3 - t.quartis.q1) * 10 }}%"></div>
+        <div class="mediana" style="left:{{ t.quartis.mediana * 10 }}%"></div>
+      </div>
+      <div class="l">notas da turma · 0 a 10</div>
+    </div>
+    {% endif %}
+    {% if t.num_risco %}<span class="risco-badge">{{ t.num_risco }} em risco</span>{% endif %}
+    <a class="ver" href="/turma/{{ t.turma | urlencode }}" onclick="event.stopPropagation()">Ver turma completa →</a>
+  </summary>
+
+  <table>
+    <tr><th class="col-texto">Aluno</th>{% for ano in t.anos %}<th>{{ ano }}</th>{% endfor %}<th>Tendência</th><th>Faltas</th></tr>
+    {% for a in t.alunos %}
+    <tr class="{{ 'linha-risco' if a.risco }}">
+      <td class="col-texto"><a href="/aluno/{{ a.matricula }}">{{ a.aluno }}</a>{% if a.risco %} <span class="tag-risco" title="Nota caindo e faltas subindo">risco</span>{% endif %}</td>
+      {% for v in a.medias %}<td>{{ pilula(v) }}</td>{% endfor %}
+      <td class="tend {{ a.tend_dir }}">
+        {%- if a.tend_dir == 'up' %}↑ {{ num(a.trend, sinal=true) }}
+        {%- elif a.tend_dir == 'down' %}↓ {{ num(a.trend, sinal=true) }}
+        {%- else %}•{% endif -%}
+      </td>
+      <td>{{ a.faltas if a.faltas is not none else '—' }}</td>
+    </tr>
     {% endfor %}
-  </tr>
-  {% endfor %}
-</table>
+  </table>
 </details>
-{% endif %}
-
-<details class="secao" open>
-<summary>1. Média geral por aluno, ano a ano</summary>
-<p class="subtitulo" style="margin-bottom:0.8rem">Clique no nome do aluno para ver o detalhe por disciplina.</p>
-{% if medias %}
-<table>
-  <tr><th class="col-texto">Aluno</th><th class="col-texto">Turma atual</th>{% for ano in anos_medias %}<th>{{ ano }}</th>{% endfor %}</tr>
-  {% for linha in medias %}
-  <tr>
-    <td class="col-texto"><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
-    <td class="col-texto">{{ linha.turma_atual }}</td>
-    {% for ano in anos_medias %}
-      <td>{{ '%.1f'|format(linha[ano]) if linha[ano] == linha[ano] else '—' }}</td>
-    {% endfor %}
-  </tr>
-  {% endfor %}
-</table>
+{% endfor %}
 {% else %}
 <p class="vazio">Sem dados para esse filtro.</p>
 {% endif %}
-</details>
-
-<details class="secao" open>
-<summary>2. Evolução de faltas por aluno / turma, ano a ano</summary>
-{% if faltas %}
-<table>
-  <tr><th class="col-texto">Aluno</th><th class="col-texto">Turma atual</th>{% for ano in anos_faltas %}<th>{{ ano }}</th>{% endfor %}</tr>
-  {% for linha in faltas %}
-  <tr>
-    <td class="col-texto"><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
-    <td class="col-texto">{{ linha.turma_atual }}</td>
-    {% for ano in anos_faltas %}
-      <td>{{ linha[ano]|int if linha[ano] == linha[ano] else '—' }}</td>
-    {% endfor %}
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="vazio">Sem dados para esse filtro.</p>
-{% endif %}
-</details>
-
-<details class="secao" open>
-<summary>3. Alunos em risco (faltas subindo + nota caindo no mesmo período)</summary>
-{% if risco %}
-<table>
-  <tr><th class="col-texto">Aluno</th><th>Ano</th><th>Variação de nota</th><th>Variação de faltas</th></tr>
-  {% for linha in risco %}
-  <tr class="risco">
-    <td class="col-texto"><a href="/aluno/{{ matriculas.get(linha.aluno, '') }}">{{ linha.aluno }}</a></td>
-    <td>{{ linha.ano_letivo }}</td>
-    <td class="desce">{{ '%.1f'|format(linha.delta_nota) }}</td>
-    <td class="sobe">+{{ linha.delta_faltas|int }}</td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="vazio">Nenhum aluno com essa combinação (nota caindo e faltas subindo) para esse filtro.</p>
-{% endif %}
-</details>
-
-<script>
-// Ordenacao clicavel nas tabelas: clique num cabecalho ordena por aquela
-// coluna (nome do aluno, turma atual, ou qualquer ano) - clique de novo
-// inverte a direcao. Nao precisa de JS nenhum no backend, so reordena as
-// linhas ja renderizadas.
-function ordenarTabela(tabela, indiceColuna, numerico) {
-  const linhas = Array.from(tabela.querySelectorAll('tr')).slice(1);
-  const mesmaColuna = tabela.dataset.sortCol == indiceColuna;
-  const asc = mesmaColuna ? tabela.dataset.sortDir !== 'asc' : true;
-  linhas.sort((a, b) => {
-    let va = a.cells[indiceColuna].textContent.trim();
-    let vb = b.cells[indiceColuna].textContent.trim();
-    if (numerico) {
-      va = va === '—' ? -Infinity : parseFloat(va.replace(',', '.'));
-      vb = vb === '—' ? -Infinity : parseFloat(vb.replace(',', '.'));
-      return asc ? va - vb : vb - va;
-    }
-    return asc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
-  });
-  linhas.forEach(l => tabela.appendChild(l));
-  tabela.dataset.sortCol = indiceColuna;
-  tabela.dataset.sortDir = asc ? 'asc' : 'desc';
-  tabela.querySelectorAll('th').forEach((th, i) => {
-    th.classList.toggle('ordenado-asc', i === indiceColuna && asc);
-    th.classList.toggle('ordenado-desc', i === indiceColuna && !asc);
-  });
-}
-
-document.querySelectorAll('table').forEach(tabela => {
-  const linhaCabecalho = tabela.querySelector('tr');
-  if (!linhaCabecalho) return;
-  Array.from(linhaCabecalho.cells).forEach((th, i) => {
-    th.classList.add('ordenavel');
-    th.addEventListener('click', () => ordenarTabela(tabela, i, !th.classList.contains('col-texto')));
-  });
-});
-</script>
 
 </body>
 </html>

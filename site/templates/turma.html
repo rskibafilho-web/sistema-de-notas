@@ -54,6 +54,13 @@
 {% endif %}
 
 <h2>Evolução trimestral</h2>
+<div class="controles-grafico">
+  <div class="modo-group">
+    <button type="button" class="modo-btn ativo" data-modo="continuo">Contínuo (2024→2026)</button>
+    <button type="button" class="modo-btn" data-modo="sobrepor">Sobrepor anos</button>
+    <button type="button" class="modo-btn" data-modo="barras">Barras</button>
+  </div>
+</div>
 <div class="chips" id="chips-disciplina"></div>
 <div class="chart-card">
   <canvas id="grafico"></canvas>
@@ -64,52 +71,100 @@ const DADOS = {{ grafico | tojson }};
 const CORES = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#e34948'];
 
 const ctx = document.getElementById('grafico').getContext('2d');
+let modo = 'continuo';
 
-function datasetsBase() {
-  return [
-    {
-      label: 'mínima 6,0', data: DADOS.labels.map(() => 6.0), borderColor: '#d03b3b',
-      borderDash: [3, 3], borderWidth: 1.25, pointRadius: 0, fill: false,
-    },
-    {
-      label: 'média da turma', data: DADOS.media_turma, borderColor: '#4a3aa7',
-      borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#4a3aa7', fill: false,
-    },
-  ];
+const anos = [...new Set(DADOS.labels.map(l => l.split(' · ')[0]))];
+const periodos = [...new Set(DADOS.labels.map(l => l.split(' · ')[1]))];
+
+function discsSelecionadas() {
+  return Object.keys(DADOS.disciplinas).filter((_, i) => document.getElementById('chip-' + i)?.checked);
 }
 
-const chart = new Chart(ctx, {
-  type: 'line',
-  data: { labels: DADOS.labels, datasets: datasetsBase() },
-  options: {
-    responsive: true,
-    scales: {
-      y: { min: 0, max: 10, grid: { color: '#e1e0d9' }, ticks: { color: '#898781' } },
-      x: { grid: { display: false }, ticks: { color: '#898781' } },
-    },
-    plugins: { legend: { position: 'bottom', labels: { color: '#52514e', usePointStyle: true } } },
+function cfgContinuo() {
+  const ds = [
+    { label: 'mínima 6,0', data: DADOS.labels.map(() => 6.0), borderColor: '#d03b3b',
+      borderDash: [3, 3], borderWidth: 1.25, pointRadius: 0, fill: false },
+    { label: 'média da turma', data: DADOS.media_turma, borderColor: '#4a3aa7',
+      borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#4a3aa7', fill: false },
+  ];
+  Object.keys(DADOS.disciplinas).forEach((disc, i) => {
+    if (document.getElementById('chip-' + i)?.checked) {
+      ds.push({ label: disc, data: DADOS.disciplinas[disc], borderColor: CORES[i % CORES.length],
+                borderWidth: 2, pointRadius: 3, fill: false });
+    }
+  });
+  return { type: 'line', labels: DADOS.labels, datasets: ds };
+}
+
+function cfgPorAno(tipo) {
+  const discs = discsSelecionadas();
+  const ds = anos.map((ano, i) => ({
+    label: ano,
+    data: periodos.map(per => {
+      const idx = DADOS.labels.indexOf(`${ano} · ${per}`);
+      if (idx === -1) return null;
+      return discs.length === 1 ? DADOS.disciplinas[discs[0]][idx] : DADOS.media_turma[idx];
+    }),
+    borderColor: CORES[i % CORES.length], backgroundColor: CORES[i % CORES.length],
+    borderWidth: 2.5, pointRadius: 4, fill: false, spanGaps: true,
+  }));
+  ds.push({ type: 'line', label: 'mínima 6,0', data: periodos.map(() => 6.0), borderColor: '#d03b3b',
+            borderDash: [3, 3], borderWidth: 1.25, pointRadius: 0, fill: false });
+  return { type: tipo, labels: periodos, datasets: ds };
+}
+
+const crosshair = {
+  id: 'crosshair',
+  afterDraw(chart) {
+    const ativos = chart.tooltip?.getActiveElements?.() || [];
+    if (!ativos.length) return;
+    const x = ativos[0].element.x;
+    const { top, bottom } = chart.chartArea;
+    const c = chart.ctx;
+    c.save(); c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom);
+    c.lineWidth = 1; c.strokeStyle = 'rgba(11,11,11,0.18)'; c.stroke(); c.restore();
   },
+};
+
+const OPCOES = {
+  responsive: true,
+  interaction: { mode: 'index', intersect: false },
+  scales: {
+    y: { min: 0, max: 10, grid: { color: '#e1e0d9' }, ticks: { color: '#898781' } },
+    x: { grid: { display: false }, ticks: { color: '#898781' } },
+  },
+  plugins: {
+    legend: { position: 'bottom', labels: { color: '#52514e', usePointStyle: true } },
+    tooltip: { mode: 'index', intersect: false },
+  },
+};
+
+let chart;
+function render() {
+  const cfg = modo === 'continuo' ? cfgContinuo()
+            : cfgPorAno(modo === 'barras' ? 'bar' : 'line');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, { type: cfg.type, data: { labels: cfg.labels, datasets: cfg.datasets },
+                           options: OPCOES, plugins: [crosshair] });
+}
+
+document.querySelectorAll('.modo-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    modo = btn.dataset.modo;
+    document.querySelectorAll('.modo-btn').forEach(b => b.classList.toggle('ativo', b === btn));
+    render();
+  });
 });
 
 const chipsDiv = document.getElementById('chips-disciplina');
 Object.keys(DADOS.disciplinas).forEach((disc, i) => {
-  const id = 'chip-' + i;
   const label = document.createElement('label');
-  label.innerHTML = `<input type="checkbox" id="${id}"> ${disc}`;
+  label.innerHTML = `<input type="checkbox" id="chip-${i}"> ${disc}`;
   chipsDiv.appendChild(label);
-  document.getElementById(id).addEventListener('change', (ev) => {
-    if (ev.target.checked) {
-      chart.data.datasets.push({
-        label: disc, data: DADOS.disciplinas[disc],
-        borderColor: CORES[i % CORES.length], borderWidth: 2, pointRadius: 3, fill: false,
-        _disciplina: disc,
-      });
-    } else {
-      chart.data.datasets = chart.data.datasets.filter(d => d._disciplina !== disc);
-    }
-    chart.update();
-  });
+  document.getElementById('chip-' + i).addEventListener('change', render);
 });
+
+render();
 </script>
 
 </body>

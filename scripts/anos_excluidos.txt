@@ -1,0 +1,4 @@
+# Um ano letivo por linha - fica de fora do site inteiro. Linhas comecando
+# com # sao comentario. Edite livremente e rode scripts/consolidar.py de
+# novo pra aplicar.
+2023

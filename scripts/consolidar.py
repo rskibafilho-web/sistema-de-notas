@@ -12,13 +12,14 @@ import pandas as pd
 BASE_DIR = Path(__file__).parent.parent
 ENTRADA = BASE_DIR / "dados_exportados"
 SAIDA = BASE_DIR / "site" / "dados" / "consolidado.csv"
-LISTA_EXCLUSAO = BASE_DIR / "scripts" / "disciplinas_excluidas.txt"
+LISTA_DISCIPLINAS_EXCLUIDAS = BASE_DIR / "scripts" / "disciplinas_excluidas.txt"
+LISTA_ANOS_EXCLUIDOS = BASE_DIR / "scripts" / "anos_excluidos.txt"
 
 
-def carregar_disciplinas_excluidas() -> list[str]:
-    if not LISTA_EXCLUSAO.exists():
+def _carregar_lista(caminho: Path) -> list[str]:
+    if not caminho.exists():
         return []
-    linhas = LISTA_EXCLUSAO.read_text(encoding="utf-8").splitlines()
+    linhas = caminho.read_text(encoding="utf-8").splitlines()
     return [l.strip() for l in linhas if l.strip() and not l.strip().startswith("#")]
 
 
@@ -53,11 +54,17 @@ def carregar_tudo() -> pd.DataFrame:
     df = df[~df["disciplina"].str.contains(r"\(INTEGRAL\)", case=False, na=False)]
     print(f"excluidas {antes - len(df)} linhas de disciplinas (INTEGRAL)")
 
-    excluidas = carregar_disciplinas_excluidas()
+    excluidas = _carregar_lista(LISTA_DISCIPLINAS_EXCLUIDAS)
     if excluidas:
         antes = len(df)
         df = df[~df["disciplina"].isin(excluidas)]
         print(f"excluidas {antes - len(df)} linhas de {excluidas} (ver scripts/disciplinas_excluidas.txt)")
+
+    anos_excluidos = [int(a) for a in _carregar_lista(LISTA_ANOS_EXCLUIDOS)]
+    if anos_excluidos:
+        antes = len(df)
+        df = df[~df["ano_letivo"].isin(anos_excluidos)]
+        print(f"excluidas {antes - len(df)} linhas dos anos {anos_excluidos} (ver scripts/anos_excluidos.txt)")
     return df
 
 
